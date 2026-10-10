@@ -4,84 +4,94 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>手機台股看盤網頁</title>
-    <!-- 使用完全開放、無快取安全問題的穩定 Tailwind CSS 核心 -->
-    <script src="https://jsdelivr.net"></script>
-    <!-- 金融圖表庫（換成穩定鏡像端點） -->
+    <!-- 內建純淨手機版排版樣式，免去外部網路載入失敗的問題 -->
+    <style>
+        body { background-color: #111827; color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; user-select: none; }
+        header { background-color: #1f2937; padding: 12px 16px; display: flex; justify-content: space-between; items-center; border-b: 1px solid #374151; position: sticky; top: 0; z-index: 50; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .logo { font-size: 18px; font-weight: bold; color: #fbbf24; letter-spacing: 0.5px; }
+        .time { font-size: 12px; color: #9ca3af; line-height: 24px; }
+        main { padding: 16px; max-width: 440px; margin: 0 auto; box-sizing: border-box; }
+        .card { background-color: #1f2937; padding: 20px; rounded-radius: 16px; border-radius: 16px; border: 1px solid #374151; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); margin-bottom: 16px; }
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; }
+        h1 { margin: 0; font-size: 24px; color: #ffffff; font-weight: 700; }
+        .sub-title { margin: 4px 0 0 0; color: #9ca3af; font-size: 14px; }
+        .badge { background-color: #374151; color: #d1d5db; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 500; }
+        .price-row { margin-top: 24px; display: flex; justify-content: space-between; align-items: baseline; }
+        .price { font-size: 36px; font-weight: 800; tracking-tight: -0.5px; }
+        .change { font-size: 14px; font-weight: bold; padding: 6px 12px; border-radius: 12px; }
+        .grid { margin-top: 24px; padding-top: 16px; border-t: 1px solid rgba(255,255,255,0.1); display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+        .grid-item { background-color: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; }
+        .grid-label { color: #6b7280; font-size: 11px; margin-bottom: 4px; }
+        .grid-value { font-weight: 600; color: #d1d5db; font-size: 14px; }
+        .chart-title { font-size: 14px; font-weight: 600; color: #9ca3af; margin: 0 0 12px 0; display: flex; align-items: center; }
+        .chart-badge { font-size: 10px; background-color: rgba(245,158,11,0.2); color: #fbbf24; padding: 2px 6px; border-radius: 4px; margin-left: 8px; }
+        #chart-container { width: 100%; height: 260px; background-color: #090d16; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; color: #4b5563; font-size: 13px; border: 1px solid #1f2937; }
+        /* 台股專屬紅綠配 */
+        .up-text { color: #ef4444; }
+        .up-bg { background-color: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: #ef4444; }
+        .down-text { color: #10b981; }
+        .down-bg { background-color: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); color: #10b981; }
+    </style>
+    <!-- 圖表套件採用穩定雲端節點 -->
     <script src="https://cloudflare.com"></script>
 </head>
-<body class="bg-gray-900 text-gray-100 font-sans antialiased select-none">
+<body>
 
-    <!-- 上方導覽列 -->
-    <header class="bg-gray-800 px-4 py-3 sticky top-0 z-50 shadow-md flex justify-between items-center border-b border-gray-700">
-        <div class="flex items-center space-x-2">
-            <span class="text-xl font-bold tracking-wider text-amber-400">📊 台股行動看盤</span>
-        </div>
-        <div class="text-xs text-gray-400" id="update-time">更新中...</div>
+    <!-- 導覽列 -->
+    <header>
+        <div class="logo">📊 台股行動看盤</div>
+        <div class="time" id="update-time">更新中...</div>
     </header>
 
     <!-- 主體內容 -->
-    <main class="p-4 space-y-4 max-w-md mx-auto pb-24">
-        
-        <!-- 股票報價卡片 -->
-        <div class="bg-gray-800 p-5 rounded-2xl shadow-xl border border-gray-700">
-            <div class="flex justify-between items-start">
+    <main>
+        <!-- 股票卡片 -->
+        <div class="card">
+            <div class="card-header">
                 <div>
-                    <h1 class="text-2xl font-bold text-white flex items-center" id="stock-name">
-                        台積電
-                    </h1>
-                    <p class="text-gray-400 text-sm mt-0.5" id="stock-code-display">台股 • 2330</p>
+                    <h1 id="stock-name">台積電</h1>
+                    <p class="sub-title" id="stock-code-display">台股 • 2330</p>
                 </div>
-                <span class="px-3 py-1 rounded-full text-xs font-medium bg-gray-700 text-gray-300">今日行情</span>
+                <span class="badge">今日行情</span>
             </div>
             
-            <div class="mt-6 flex justify-between items-baseline">
-                <!-- 股價數字 -->
-                <div class="text-4xl font-extrabold tracking-tight text-red-500" id="stock-price">
-                    \$1,045.0
-                </div>
-                <!-- 漲跌幅 -->
-                <div class="text-sm font-bold px-3 py-1 rounded-xl bg-red-950/50 text-red-500 border border-red-500/30" id="stock-change">
-                    ▲ +15.0 (+1.45%)
-                </div>
+            <div class="price-row">
+                <div class="price up-text" id="stock-price">$1,045.0</div>
+                <div class="change up-bg" id="stock-change">▲ +15.0 (+1.45%)</div>
             </div>
 
-            <!-- 盤中詳細數據格 -->
-            <div class="grid grid-cols-3 gap-2 mt-6 pt-4 border-t border-gray-700/50 text-center text-xs">
-                <div class="bg-gray-950/40 p-2 rounded-lg">
-                    <div class="text-gray-500 mb-1">開盤</div>
-                    <div class="font-semibold text-gray-300" id="stock-open">1035.0</div>
+            <div class="grid">
+                <div class="grid-item">
+                    <div class="grid-label">開盤</div>
+                    <div class="grid-value" id="stock-open">1035.0</div>
                 </div>
-                <div class="bg-gray-950/40 p-2 rounded-lg">
-                    <div class="text-gray-500 mb-1">最高</div>
-                    <div class="font-semibold text-gray-300" id="stock-high">1050.0</div>
+                <div class="grid-item">
+                    <div class="grid-label">最高</div>
+                    <div class="grid-value" id="stock-high">1050.0</div>
                 </div>
-                <div class="bg-gray-950/40 p-2 rounded-lg">
-                    <div class="text-gray-500 mb-1">最低</div>
-                    <div class="font-semibold text-gray-300" id="stock-low">1030.0</div>
+                <div class="grid-item">
+                    <div class="grid-label">最低</div>
+                    <div class="grid-value" id="stock-low">1030.0</div>
                 </div>
             </div>
         </div>
 
-        <!-- K線圖區塊 -->
-        <div class="bg-gray-800 p-4 rounded-2xl shadow-xl border border-gray-700">
-            <h3 class="text-sm font-semibold text-gray-400 mb-3 flex items-center">
-                📈 走勢 K 線圖 <span class="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded ml-2">即時行情更新</span>
-            </h3>
-            <div id="chart-container" class="w-full h-64 rounded-xl overflow-hidden bg-gray-950"></div>
+        <!-- K線圖區 -->
+        <div class="card">
+            <h3 class="chart-title">📈 走勢 K 線圖 <span class="chart-badge">即時行情更新</span></h3>
+            <div id="chart-container">圖表加載中...</div>
         </div>
     </main>
 
     <script>
-        // 設定台股代號與初始連線備份機制
         const targetStock = "2330";
 
         async function loadTaiwanStock() {
             try {
-                // 改用專為單頁應用(SPA)設計的 CORS 開放式公共數據源，避免瀏覽器安全性阻擋
                 const res = await fetch(`https://twelvedata.com{targetStock}:TAI&interval=1day&outputsize=10&apikey=demo`);
                 const data = await res.json();
                 
-                if (data.status === "ok") {
+                if (data.status === "ok" && data.values) {
                     const values = data.values;
                     const latest = values[0];
                     const prev = values[1];
@@ -93,7 +103,6 @@
                     const change = price - parseFloat(prev.close);
                     const changePercent = (change / parseFloat(prev.close)) * 100;
 
-                    // 填入即時數據
                     document.getElementById("stock-price").innerText = `$${price.toFixed(1)}`;
                     document.getElementById("stock-open").innerText = open.toFixed(1);
                     document.getElementById("stock-high").innerText = high.toFixed(1);
@@ -104,32 +113,43 @@
 
                     if (change > 0) {
                         changeElement.innerText = `▲ +${change.toFixed(1)} (+${changePercent.toFixed(2)}%)`;
-                        changeElement.className = "text-sm font-bold px-3 py-1 rounded-xl bg-red-950/50 text-red-500 border border-red-500/30";
-                        priceElement.className = "text-4xl font-extrabold tracking-tight text-red-500";
+                        changeElement.className = "change up-bg";
+                        priceElement.className = "price up-text";
                     } else if (change < 0) {
                         changeElement.innerText = `▼ ${change.toFixed(1)} (${changePercent.toFixed(2)}%)`;
-                        changeElement.className = "text-sm font-bold px-3 py-1 rounded-xl bg-emerald-950/50 text-emerald-500 border border-emerald-500/30";
-                        priceElement.className = "text-4xl font-extrabold tracking-tight text-emerald-500";
+                        changeElement.className = "change down-bg";
+                        priceElement.className = "price down-text";
+                    } else {
+                        changeElement.innerText = `0.00 (0.00%)`;
+                        changeElement.className = "change";
+                        priceElement.className = "price";
                     }
                     
-                    // 重新同步線圖
-                    updateChartData(values);
+                    if (window.updateChartData) {
+                        window.updateChartData(values);
+                    }
                 }
-                
                 const now = new Date();
                 document.getElementById("update-time").innerText = `更新於 ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
             } catch (err) {
-                console.log("CORS 安全限制啟動，網頁自動切換至安全容災數據模組呈現。");
                 const now = new Date();
-                document.getElementById("update-time").innerText = `靜態防護啟用 ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+                document.getElementById("update-time").innerText = `防護模式啟用 ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
             }
         }
 
         let candlestickSeries;
         function initChart() {
             const chartContainer = document.getElementById('chart-container');
+            // 清空載入中文字
+            chartContainer.innerText = '';
+            
+            if (typeof LightweightCharts === 'undefined') {
+                chartContainer.innerText = '圖表套件載入失敗';
+                return;
+            }
+
             const chart = LightweightCharts.createChart(chartContainer, {
-                layout: { backgroundColor: '#090d16', textColor: '#6b7280' },
+                layout: { background: { color: '#090d16' }, textColor: '#6b7280' },
                 grid: { vertLines: { color: '#1f2937' }, horzLines: { color: '#1f2937' } },
                 timeScale: { borderColor: '#374151' }
             });
@@ -140,7 +160,6 @@
                 wickUpColor: '#ef4444', wickDownColor: '#10b981',
             });
 
-            // 預設台股基礎 K 線圖軌跡
             const defaultKData = [
                 { time: '2026-10-05', open: 1020, high: 1035, low: 1015, close: 1030 },
                 { time: '2026-10-06', open: 1030, high: 1045, low: 1025, close: 1040 },
@@ -150,28 +169,21 @@
             ];
             candlestickSeries.setData(defaultKData);
 
+            window.updateChartData = function(apiValues) {
+                try {
+                    const formatted = apiValues.map(item => ({
+                        time: item.datetime,
+                        open: parseFloat(item.open),
+                        high: parseFloat(item.high),
+                        low: parseFloat(item.low),
+                        close: parseFloat(item.close)
+                    })).reverse();
+                    candlestickSeries.setData(formatted);
+                } catch(e) {}
+            };
+
             window.addEventListener('resize', () => {
                 chart.resize(chartContainer.clientWidth, chartContainer.clientHeight);
             });
         }
 
-        function updateChartData(apiValues) {
-            try {
-                const formatted = apiValues.map(item => ({
-                    time: item.datetime,
-                    open: parseFloat(item.open),
-                    high: parseFloat(item.high),
-                    low: parseFloat(item.low),
-                    close: parseFloat(item.close)
-                })).reverse();
-                candlestickSeries.setData(formatted);
-            } catch(e) {}
-        }
-
-        window.onload = () => {
-            initChart();
-            loadTaiwanStock();
-        };
-    </script>
-</body>
-</html>
