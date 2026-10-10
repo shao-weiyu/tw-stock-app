@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台股手機看盤行動網頁</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- Lightweight Charts for K-Line -->
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans antialiased">
+
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700 sticky top-0 z-50 px-4 py-3 flex justify-between items-center">
+        <h1 class="text-xl font-bold text-emerald-400">📊 台股行動看盤</h1>
+        <div class="text-xs text-gray-400" id="update-time">更新時間: --:--:--</div>
+    </header>
+
+    <main class="p-4 space-y-4 pb-20">
+        <!-- Search & Add -->
+        <div class="bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700">
+            <h2 class="text-sm font-semibold text-gray-400 mb-2">新增自選股</h2>
+            <div class="flex gap-2">
+                <input type="text" id="stock-input" placeholder="輸入代號 (如: 2330)" class="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-sm">
+                <button id="add-btn" class="bg-emerald-500 hover:bg-emerald-600 text-gray-900 font-bold px-4 py-2 rounded-lg text-sm transition">加入</button>
+            </div>
+        </div>
+
+        <!-- Stock List -->
+        <div class="bg-gray-800 rounded-xl shadow-lg border border-gray-700 overflow-hidden">
+            <div class="px-4 py-3 bg-gray-750 border-b border-gray-700 font-semibold text-sm text-gray-400">
+                我的自選股 (點擊查看K線)
+            </div>
+            <div id="stock-list" class="divide-y divide-gray-700">
+                <!-- Dynamic Items -->
+            </div>
+        </div>
+
+        <!-- Chart Section -->
+        <div id="chart-container-wrapper" class="bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700 hidden">
+            <div class="flex justify-between items-center mb-3">
+                <h3 id="chart-title" class="font-bold text-base text-white">股票走勢</h3>
+                <button id="close-chart" class="text-gray-400 hover:text-white text-xs px-2 py-1 bg-gray-700 rounded">關閉</button>
+            </div>
+            <div id="chart-container" class="w-full h-64"></div>
+        </div>
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 px-6 py-2 flex justify-around text-center text-xs text-gray-400 z-50">
+        <div class="text-emerald-400"><div class="text-lg">📈</div>自選行情</div>
+        <div class="opacity-50"><div class="text-lg">📰</div>即時新聞</div>
+        <div class="opacity-50"><div class="text-lg">⚙️</div>設定</div>
+    </nav>
+
+    <script>
+        // Default Mock Data Server (In real app, fetch from TWSE open data API)
+        const mockStockDatabase = {
+            '2330': { name: '台積電', price: 1030, change: 15, pct: '1.48%' },
+            '2317': { name: '鴻海', price: 210, change: -3.5, pct: '-1.64%' },
+            '2454': { name: '聯發科', price: 1280, change: 0, pct: '0.00%' },
+        };
+
+        let watchList = JSON.parse(localStorage.getItem('tw_watchlist')) || ['2330', '2317'];
+        let chart = null;
+        let candleSeries = null;
+
+        function init() {
+            renderWatchList();
+            document.getElementById('add-btn').addEventListener('click', addStock);
+            document.getElementById('close-chart').addEventListener('click', () => {
+                document.getElementById('chart-container-wrapper').classList.add('hidden');
+            });
+            document.getElementById('update-time').innerText = `更新時間: ${new Date().toLocaleTimeString()}`;
+        }
+
+        function renderWatchList() {
+            const listContainer = document.getElementById('stock-list');
+            listContainer.innerHTML = '';
+
+            if (watchList.length === 0) {
+                listContainer.innerHTML = `<div class="p-4 text-center text-gray-500 text-sm">暫無自選股</div>`;
+                return;
+            }
+
+            watchList.forEach(code => {
+                const data = mockStockDatabase[code] || { name: '未知股票', price: 0, change: 0, pct: '0.00%' };
+                const isUp = data.change > 0;
+                const isDown = data.change < 0;
+                const colorClass = isUp ? 'text-red-500' : (isDown ? 'text-green-500' : 'text-gray-400');
+                const sign = isUp ? '+' : '';
+
+                const item = document.createElement('div');
+                item.className = 'p-4 flex justify-between items-center hover:bg-gray-750 active:bg-gray-700 cursor-pointer transition';
+                item.innerHTML = `
+                    <div>
+                        <div class="font-bold text-white text-base">${code} <span class="text-sm font-normal text-gray-400">${data.name}</span></div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-mono font-bold text-lg">${data.price.toFixed(2)}</div>
+                        <div class="font-mono text-xs ${colorClass}">${sign}${data.change.toFixed(2)} (${sign}${data.pct})</div>
+                    </div>
+                `;
+                item.addEventListener('click', () => showChart(code, data.name));
+                listContainer.appendChild(item);
+            });
+            localStorage.setItem('tw_watchlist', JSON.stringify(watchList));
+        }
+
+        function addStock() {
+            const input = document.getElementById('stock-input');
+            const code = input.value.trim();
+            if (!code) return;
+            
+            if (!watchList.includes(code)) {
+                // generate a mock profile if not exists
+                if (!mockStockDatabase[code]) {
+                    mockStockDatabase[code] = { name: '自訂個股', price: 100 + Math.random()*200, change: Math.random()*10 - 5, pct: '1.2%' };
+                }
+                watchList.push(code);
+                renderWatchList();
+            }
+            input.value = '';
+        }
+
+        function showChart(code, name) {
+            const wrapper = document.getElementById('chart-container-wrapper');
+            wrapper.classList.remove('hidden');
+            document.getElementById('chart-title').innerText = `${code} ${name} 走勢圖`;
+
+            const container = document.getElementById('chart-container');
+            container.innerHTML = '';
+
+            chart = LightweightCharts.createChart(container, {
+                layout: { backgroundColor: '#1f2937', textColor: '#d1d5db' },
+                grid: { vertLines: { color: '#374151' }, horzLines: { color: '#374151' } },
+                crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                rightPriceScale: { borderColor: '#4b5563' },
+                timeScale: { borderColor: '#4b5563' },
+            });
+
+            candleSeries = chart.addCandlestickSeries({
+                upColor: '#ef4444', downColor: '#22c55e', borderDownColor: '#22c55e',
+                borderUpColor: '#ef4444', wickDownColor: '#22c55e', wickUpColor: '#ef4444',
+            });
+
+            // Generate mock historical data
+            const data = [];
+            let basePrice = mockStockDatabase[code]?.price || 100;
+            let time = new Date(2026, 0, 1);
+            for (let i = 0; i < 30; i++) {
+                let open = basePrice + (Math.random() - 0.5) * 10;
+                let close = open + (Math.random() - 0.5) * 10;
+                let high = Math.max(open, close) + Math.random() * 5;
+                let low = Math.min(open, close) - Math.random() * 5;
+                data.push({
+                    time: time.toISOString().split('T')[0],
+                    open: open, high: high, low: low, close: close
+                });
+                time.setDate(time.getDate() + 1);
+                basePrice = close;
+            }
+            candleSeries.setData(data);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
