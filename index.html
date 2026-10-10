@@ -22,7 +22,7 @@
     <!-- 主體內容 -->
     <main class="p-4 space-y-4 max-w-md mx-auto pb-24">
         
-        <!-- 股票報價卡片區區 -->
+        <!-- 股票報價卡片區 -->
         <div class="bg-gray-800 p-5 rounded-2xl shadow-xl border border-gray-700">
             <div class="flex justify-between items-start">
                 <div>
@@ -73,67 +73,61 @@
     </main>
 
     <script>
-        // 目標查詢的台股代號（你可以自由修改這裡，例如：2454、2317）
-        const targetStockCode = "2330"; 
+        // 目標查詢的台股代號（這裡使用台積電 2330.TW 格式）
+        const stockTicker = "2330.TW"; 
+        const stockNameMapping = { "2330.TW": "台積電" };
 
-        // 串接證交所官方 OpenAPI + 使用免費全來源 CORS 代理轉發
-        const proxyUrl = "https://allorigins.win";
-        const twseApiUrl = encodeURIComponent("https://twse.com.tw");
-
-        // 核心功能：抓取真正的台股資料
         async function loadTaiwanStock() {
             try {
-                const response = await fetch(`${proxyUrl}${twseApiUrl}`);
+                // 改用免轉發代理、且支援 RWD/CORS 的 Yahoo 財經公開查詢端點
+                const response = await fetch(`https://yahoo.com{stockTicker}?interval=1d&range=1d`);
                 if (!response.ok) throw new Error('網路請求失敗');
                 
                 const data = await response.json();
-                // 解析代理伺服器傳回的字串內容
-                const stockList = JSON.parse(data.contents);
+                const result = data.chart.result[0];
+                const meta = result.meta;
+                const indicators = result.indicators.quote[0];
+
+                // 讀取最新股價數據
+                const price = meta.regularMarketPrice;
+                const previousClose = meta.previousClose;
+                const change = price - previousClose;
+                const changePercent = (change / previousClose) * 100;
                 
-                // 在全台股列表中找到我們指定的代號
-                const myStock = stockList.find(item => item.Code === targetStockCode);
+                const open = indicators.open[0] || "--";
+                const high = indicators.high[0] || "--";
+                const low = indicators.low[0] || "--";
                 
-                if (myStock) {
-                    // 1. 轉換並計算數據
-                    const price = parseFloat(myStock.ClosingPrice);
-                    const change = parseFloat(myStock.Change);
-                    const open = parseFloat(myStock.OpeningPrice) || "--";
-                    const high = parseFloat(myStock.HighestPrice) || "--";
-                    const low = parseFloat(myStock.LowestPrice) || "--";
-                    
-                    // 2. 渲染文字到網頁畫面上
-                    document.getElementById("stock-name").innerText = myStock.Name;
-                    document.getElementById("stock-code-display").innerText = `台股 • ${myStock.Code}`;
-                    document.getElementById("stock-price").innerText = `$${price.toFixed(2)}`;
-                    document.getElementById("stock-open").innerText = open;
-                    document.getElementById("stock-high").innerText = high;
-                    document.getElementById("stock-low").innerText = low;
-                    
-                    // 3. 處理台股「紅漲綠跌」的顏色邏輯與正負號
-                    const changeElement = document.getElementById("stock-change");
-                    const priceElement = document.getElementById("stock-price");
-                    
-                    if (change > 0) {
-                        changeElement.innerText = `▲ +${change.toFixed(2)}`;
-                        changeElement.className = "text-lg font-bold px-3 py-1 rounded-xl bg-red-950/50 text-red-500 border border-red-500/30";
-                        priceElement.className = "text-4xl font-extrabold tracking-tight text-red-500";
-                    } else if (change < 0) {
-                        changeElement.innerText = `▼ ${change.toFixed(2)}`;
-                        changeElement.className = "text-lg font-bold px-3 py-1 rounded-xl bg-emerald-950/50 text-emerald-500 border border-emerald-500/30";
-                        priceElement.className = "text-4xl font-extrabold tracking-tight text-emerald-500";
-                    } else {
-                        changeElement.innerText = `0.00`;
-                        changeElement.className = "text-lg font-bold px-3 py-1 rounded-xl bg-gray-700/50 text-gray-400";
-                        priceElement.className = "text-4xl font-extrabold tracking-tight text-gray-300";
-                    }
-                    
-                    // 顯示更新時間
-                    const now = new Date();
-                    document.getElementById("update-time").innerText = `更新於 ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-                    
+                // 渲染文字到網頁畫面上
+                document.getElementById("stock-name").innerText = stockNameMapping[stockTicker] || "台灣股市";
+                document.getElementById("stock-code-display").innerText = `台股 • ${stockTicker.replace('.TW', '')}`;
+                document.getElementById("stock-price").innerText = `$${price.toFixed(1)}`;
+                document.getElementById("stock-open").innerText = typeof open === 'number' ? open.toFixed(1) : open;
+                document.getElementById("stock-high").innerText = typeof high === 'number' ? high.toFixed(1) : high;
+                document.getElementById("stock-low").innerText = typeof low === 'number' ? low.toFixed(1) : low;
+                
+                // 處理台股「紅漲綠跌」的顏色邏輯與正負號
+                const changeElement = document.getElementById("stock-change");
+                const priceElement = document.getElementById("stock-price");
+                
+                if (change > 0) {
+                    changeElement.innerText = `▲ +${change.toFixed(1)} (+${changePercent.toFixed(2)}%)`;
+                    changeElement.className = "text-sm font-bold px-3 py-1 rounded-xl bg-red-950/50 text-red-500 border border-red-500/30";
+                    priceElement.className = "text-4xl font-extrabold tracking-tight text-red-500";
+                } else if (change < 0) {
+                    changeElement.innerText = `▼ ${change.toFixed(1)} (${changePercent.toFixed(2)}%)`;
+                    changeElement.className = "text-sm font-bold px-3 py-1 rounded-xl bg-emerald-950/50 text-emerald-500 border border-emerald-500/30";
+                    priceElement.className = "text-4xl font-extrabold tracking-tight text-emerald-500";
                 } else {
-                    document.getElementById("stock-name").innerText = "代號錯誤";
+                    changeElement.innerText = `0.00 (0.00%)`;
+                    changeElement.className = "text-sm font-bold px-3 py-1 rounded-xl bg-gray-700/50 text-gray-400";
+                    priceElement.className = "text-4xl font-extrabold tracking-tight text-gray-300";
                 }
+                
+                // 顯示更新時間
+                const now = new Date();
+                document.getElementById("update-time").innerText = `更新於 ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+                
             } catch (error) {
                 console.error("API 載入失敗:", error);
                 document.getElementById("stock-name").innerText = "連線失敗";
@@ -156,7 +150,6 @@
                 wickUpColor: '#ef4444', wickDownColor: '#10b981',
             });
 
-            // 模擬一些歷史數據給K線圖呈現（證交所免費API不提供K線歷史，通常需要後端庫支援）
             const dummyData = [
                 { time: '2026-10-05', open: 1020, high: 1035, low: 1015, close: 1030 },
                 { time: '2026-10-06', open: 1030, high: 1045, low: 1025, close: 1040 },
@@ -166,13 +159,11 @@
             ];
             candlestickSeries.setData(dummyData);
 
-            // 讓圖表隨手機螢幕大小自動縮放
             window.addEventListener('resize', () => {
                 chart.resize(chartContainer.clientWidth, chartContainer.clientHeight);
             });
         }
 
-        // 網頁載入時同步啟動
         window.onload = () => {
             loadTaiwanStock();
             initChart();
